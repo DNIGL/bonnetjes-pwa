@@ -1144,13 +1144,15 @@ const einddatumInput = document.getElementById("einddatum");
 const medewerkerSelect = document.getElementById("medewerker");
 const overzichtKlantSelect = document.getElementById("overzichtKlant");
 const medewerkerWrap = document.getElementById("medewerkerWrap");
+const medewerkerAndersWrap = document.getElementById("medewerkerAndersWrap");
+const medewerkerAndersInput = document.getElementById("medewerkerAnders");
 const overzichtKlantWrap = document.getElementById("overzichtKlantWrap");
 const overzichtKlantAndersWrap = document.getElementById("overzichtKlantAndersWrap");
 const overzichtKlantAndersInput = document.getElementById("overzichtKlantAnders");
 const filterTypeRadios = document.querySelectorAll('input[name="filterType"]');
 const emailInput = document.getElementById("email");
 
-fillSelect(medewerkerSelect, CONFIG.employees);
+fillSelect(medewerkerSelect, [...CONFIG.employees, "Anders"]);
 fillSelect(overzichtKlantSelect, [...CONFIG.clients, "Anders"]);
 
 // Medewerker and Klant are mutually exclusive filters -- only one select
@@ -1158,9 +1160,11 @@ fillSelect(overzichtKlantSelect, [...CONFIG.clients, "Anders"]);
 function updateFilterTypeUI() {
   const active = document.querySelector('input[name="filterType"]:checked').value;
   medewerkerWrap.hidden = active !== "medewerker";
+  medewerkerAndersWrap.hidden = active !== "medewerker" || medewerkerSelect.value !== "Anders";
   overzichtKlantWrap.hidden = active !== "klant";
   overzichtKlantAndersWrap.hidden = active !== "klant" || overzichtKlantSelect.value !== "Anders";
 }
+medewerkerSelect.addEventListener("change", () => updateFilterTypeUI());
 overzichtKlantSelect.addEventListener("change", () => updateFilterTypeUI());
 filterTypeRadios.forEach((radio) => radio.addEventListener("change", updateFilterTypeUI));
 updateFilterTypeUI();
@@ -1285,6 +1289,13 @@ overzichtForm.addEventListener("submit", async (e) => {
     setOverzichtStatus("Vul de naam van de klant in.", "error");
     return;
   }
+  // Zelfde normalisatie (titleCase) als bij het indienen, want Flow 2 vergelijkt
+  // SubmittedBy exact met deze waarde.
+  const medewerkerVoorOverzicht = resolveWithAnders(medewerkerSelect, medewerkerAndersInput);
+  if (filterType === "medewerker" && !medewerkerVoorOverzicht) {
+    setOverzichtStatus("Vul de naam van de medewerker in.", "error");
+    return;
+  }
 
   overzichtSubmitBtn.disabled = true;
   const stopVoortgang = startOverzichtVoortgang();
@@ -1292,7 +1303,7 @@ overzichtForm.addEventListener("submit", async (e) => {
     const res = await flowFetch(CONFIG.overviewFlowUrl, {
       Startdatum: startdatum.iso,
       Einddatum: einddatum.iso,
-      Medewerker: filterType === "medewerker" ? medewerkerSelect.value : "",
+      Medewerker: filterType === "medewerker" ? medewerkerVoorOverzicht : "",
       Klant: filterType === "klant" ? klantVoorOverzicht : "",
       Email: emailInput.value,
     });
@@ -1303,8 +1314,9 @@ overzichtForm.addEventListener("submit", async (e) => {
     setOverzichtStatus("Overzicht wordt gegenereerd, je ontvangt zo een e-mail.", "success");
     overzichtForm.reset();
     zetVorigeMaandAlsStandaard();
-    fillSelect(medewerkerSelect, CONFIG.employees);
+    fillSelect(medewerkerSelect, [...CONFIG.employees, "Anders"]);
     fillSelect(overzichtKlantSelect, [...CONFIG.clients, "Anders"]);
+    medewerkerAndersInput.value = "";
     overzichtKlantAndersInput.value = "";
     updateFilterTypeUI();
   } catch (err) {
