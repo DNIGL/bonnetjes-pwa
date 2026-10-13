@@ -1,0 +1,60 @@
+name: Deploy PWA to Azure Static Web Apps
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-swa
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject flow URLs into config.js
+        env:
+          FLOW_URL: ${{ secrets.FLOW_URL }}
+          OVERVIEW_FLOW_URL: ${{ secrets.OVERVIEW_FLOW_URL }}
+          FLOW4_URL: ${{ secrets.FLOW4_URL }}
+          LIST_FLOW_URL: ${{ secrets.LIST_FLOW_URL }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = 'config.js';
+            const map = {
+              REPLACE_WITH_FLOW_0_HTTP_TRIGGER_URL: 'FLOW_URL',
+              REPLACE_WITH_FLOW_2_HTTP_TRIGGER_URL: 'OVERVIEW_FLOW_URL',
+              REPLACE_WITH_FLOW_4_HTTP_TRIGGER_URL: 'FLOW4_URL',
+              REPLACE_WITH_FLOW_6_HTTP_TRIGGER_URL: 'LIST_FLOW_URL',
+            };
+            let content = fs.readFileSync(path, 'utf8');
+            for (const [placeholder, secret] of Object.entries(map)) {
+              const url = process.env[secret];
+              if (!url) {
+                console.error(secret + ' secret is not set -- refusing to deploy with a placeholder.');
+                process.exit(1);
+              }
+              if (!content.includes(placeholder)) {
+                console.error('Placeholder ' + placeholder + ' not found in config.js -- refusing to deploy.');
+                process.exit(1);
+              }
+              content = content.split(placeholder).join(url);
+            }
+            fs.writeFileSync(path, content);
+          "
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: /
+          skip_app_build: true
