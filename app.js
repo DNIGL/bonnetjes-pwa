@@ -1,7 +1,6 @@
 const form = document.getElementById("form");
 const wieBenJijSelect = document.getElementById("wieBenJij");
 const categorieSelect = document.getElementById("categorie");
-const toelichtingWrap = document.getElementById("toelichtingWrap");
 const klantSelect = document.getElementById("klant");
 const submitBtn = document.getElementById("submitBtn");
 const statusMsg = document.getElementById("statusMsg");
@@ -304,10 +303,6 @@ fillSelect(wieBenJijSelect, [...CONFIG.employees, "Anders"]);
 fillSelect(categorieSelect, CONFIG.categories);
 fillSelect(klantSelect, [...CONFIG.clients, "Anders"]);
 
-categorieSelect.addEventListener("change", () => {
-  toelichtingWrap.hidden = categorieSelect.value !== "Anders";
-});
-
 wieBenJijSelect.addEventListener("change", () => {
   wieBenJijAndersWrap.hidden = wieBenJijSelect.value !== "Anders";
 });
@@ -538,7 +533,6 @@ const confirmCurrencyInput = document.getElementById("confirmCurrencyInput");
 const confirmVendorInput = document.getElementById("confirmVendorInput");
 const confirmDateInput = document.getElementById("confirmDateInput");
 const confirmCategorieSelect = document.getElementById("confirmCategorieSelect");
-const confirmToelichtingWrap = document.getElementById("confirmToelichtingWrap");
 const confirmToelichtingInput = document.getElementById("confirmToelichtingInput");
 const confirmKlantSelect = document.getElementById("confirmKlantSelect");
 const confirmKlantAndersWrap = document.getElementById("confirmKlantAndersWrap");
@@ -815,7 +809,6 @@ function runConfirmStep(file, extraction, meta) {
 
     fillSelect(confirmCategorieSelect, CONFIG.categories);
     confirmCategorieSelect.value = CONFIG.categories.includes(meta.categorie) ? meta.categorie : CONFIG.categories[0];
-    confirmToelichtingWrap.hidden = confirmCategorieSelect.value !== "Anders";
     confirmToelichtingInput.value = meta.toelichting || "";
 
     fillSelect(confirmKlantSelect, [...CONFIG.clients, "Anders"]);
@@ -841,9 +834,6 @@ function runConfirmStep(file, extraction, meta) {
       confirmMedewerkerAndersEmailWrap.hidden = false;
     }
 
-    function onCategorieChange() {
-      confirmToelichtingWrap.hidden = confirmCategorieSelect.value !== "Anders";
-    }
     function onKlantChange() {
       confirmKlantAndersWrap.hidden = confirmKlantSelect.value !== "Anders";
     }
@@ -856,7 +846,6 @@ function runConfirmStep(file, extraction, meta) {
       const n = parseFloat(confirmAmountInput.value.replace(",", "."));
       if (!isNaN(n)) confirmAmountInput.value = n.toFixed(2);
     }
-    confirmCategorieSelect.addEventListener("change", onCategorieChange);
     confirmKlantSelect.addEventListener("change", onKlantChange);
     confirmMedewerkerSelect.addEventListener("change", onMedewerkerChange);
     confirmDateInput.addEventListener("input", formatDatumInput);
@@ -865,7 +854,6 @@ function runConfirmStep(file, extraction, meta) {
     function cleanup() {
       confirmRetryBtn.removeEventListener("click", onRetry);
       confirmSubmitBtn.removeEventListener("click", onSubmit);
-      confirmCategorieSelect.removeEventListener("change", onCategorieChange);
       confirmKlantSelect.removeEventListener("change", onKlantChange);
       confirmMedewerkerSelect.removeEventListener("change", onMedewerkerChange);
       confirmDateInput.removeEventListener("input", formatDatumInput);
@@ -897,7 +885,7 @@ function runConfirmStep(file, extraction, meta) {
         return;
       }
       const categorie = confirmCategorieSelect.value;
-      const toelichting = categorie === "Anders" ? confirmToelichtingInput.value.trim() : "";
+      const toelichting = confirmToelichtingInput.value.trim();
       const klant = resolveWithAnders(confirmKlantSelect, confirmKlantAndersInput, normaliseKlantnaam);
       if (!klant) {
         setWizardStatus("Vul de klantnaam in.", "error");
@@ -909,7 +897,9 @@ function runConfirmStep(file, extraction, meta) {
         return;
       }
       const submittedByEmail = resolveSubmittedByEmail(confirmMedewerkerSelect, confirmMedewerkerAndersEmailInput);
-      if (!submittedByEmail || !submittedByEmail.includes("@")) {
+      // Bij een vaste medewerker zonder adres in de config (bijv. een demo-omgeving waar het adres niet in de
+      // publieke config mag staan) is het adres niet verplicht: de flow valt dan terug op de vaste ontvanger.
+      if (confirmMedewerkerSelect.value === "Anders" && (!submittedByEmail || !submittedByEmail.includes("@"))) {
         setWizardStatus("Vul een geldig e-mailadres in voor de medewerker.", "error");
         return;
       }
@@ -1526,7 +1516,6 @@ form.addEventListener("submit", async (e) => {
       fillSelect(wieBenJijSelect, [...CONFIG.employees, "Anders"]);
       fillSelect(categorieSelect, CONFIG.categories);
       fillSelect(klantSelect, [...CONFIG.clients, "Anders"]);
-      toelichtingWrap.hidden = true;
       wieBenJijAndersWrap.hidden = true;
       wieBenJijAndersInput.value = "";
       wieBenJijAndersEmailInput.value = "";
