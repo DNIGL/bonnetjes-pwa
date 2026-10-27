@@ -971,6 +971,10 @@ button#uitbetaalSubmitBtn:disabled {
   background-repeat: no-repeat;
   background-position: right 4px center;
   padding-right: 24px;
+  /* vaste, behapbare breedte rechts uitgelijnd: het uitklapmenu volgt de breedte van het veld */
+  flex: 0 1 170px;
+  margin-left: auto;
+  text-overflow: ellipsis;
 }
 
 .confirm-row input:focus,

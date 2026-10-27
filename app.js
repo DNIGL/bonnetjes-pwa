@@ -1049,7 +1049,8 @@ async function runBonWizard(files, meta) {
           break;
         }
 
-        const { actie, values } = await runConfirmStep(file, extraction, meta);
+        // De toelichting uit het eerste formulier hoort bij de eerste bon; vanaf de tweede bon begint dat veld leeg.
+        const { actie, values } = await runConfirmStep(file, extraction, i === 0 ? meta : { ...meta, toelichting: "" });
         if (actie === "retry") {
           file = await runCropStep(file);
           if (file === null) {
