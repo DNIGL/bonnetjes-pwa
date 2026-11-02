@@ -678,34 +678,60 @@ function runCropStep(file) {
     cropImage.onload = initCorners;
     if (cropImage.complete && cropImage.naturalWidth) initCorners();
 
+    // Het hele vlak luistert: een aanraking pakt de dichtstbijzijnde hoek
+    // (binnen GRAB_RADIUS), zodat je de kleine bol niet precies hoeft te raken.
+    // Het verschil tussen vinger en hoek blijft behouden, zodat de hoek niet
+    // onder je vinger wegspringt.
+    const GRAB_RADIUS = 70;
     let dragIndex = null;
+    let grabDx = 0;
+    let grabDy = 0;
     function onPointerDown(e) {
-      dragIndex = parseInt(e.currentTarget.dataset.corner, 10);
-      e.currentTarget.setPointerCapture(e.pointerId);
+      if (!corners) return;
+      const stageRect = cropStage.getBoundingClientRect();
+      const px = e.clientX - stageRect.left;
+      const py = e.clientY - stageRect.top;
+      let best = -1;
+      let bestDist = GRAB_RADIUS;
+      corners.forEach((c, i) => {
+        const d = Math.hypot(c.x - px, c.y - py);
+        if (d <= bestDist) {
+          best = i;
+          bestDist = d;
+        }
+      });
+      if (best === -1) return;
+      dragIndex = best;
+      grabDx = corners[best].x - px;
+      grabDy = corners[best].y - py;
+      cropStage.setPointerCapture(e.pointerId);
     }
     function onPointerMove(e) {
       if (dragIndex === null) return;
       const stageRect = cropStage.getBoundingClientRect();
-      const x = Math.min(Math.max(e.clientX - stageRect.left, 0), stageRect.width);
-      const y = Math.min(Math.max(e.clientY - stageRect.top, 0), stageRect.height);
+      const x = Math.min(Math.max(e.clientX - stageRect.left + grabDx, 0), stageRect.width);
+      const y = Math.min(Math.max(e.clientY - stageRect.top + grabDy, 0), stageRect.height);
       corners[dragIndex] = { x, y };
       renderCropHandles(corners);
     }
     function onPointerUp() {
       dragIndex = null;
     }
-    cropHandles.forEach((el) => {
-      el.addEventListener("pointerdown", onPointerDown);
-      el.addEventListener("pointermove", onPointerMove);
-      el.addEventListener("pointerup", onPointerUp);
-    });
+    function onContextMenu(e) {
+      e.preventDefault();
+    }
+    cropStage.addEventListener("pointerdown", onPointerDown);
+    cropStage.addEventListener("pointermove", onPointerMove);
+    cropStage.addEventListener("pointerup", onPointerUp);
+    cropStage.addEventListener("pointercancel", onPointerUp);
+    cropStage.addEventListener("contextmenu", onContextMenu);
 
     function cleanup() {
-      cropHandles.forEach((el) => {
-        el.removeEventListener("pointerdown", onPointerDown);
-        el.removeEventListener("pointermove", onPointerMove);
-        el.removeEventListener("pointerup", onPointerUp);
-      });
+      cropStage.removeEventListener("pointerdown", onPointerDown);
+      cropStage.removeEventListener("pointermove", onPointerMove);
+      cropStage.removeEventListener("pointerup", onPointerUp);
+      cropStage.removeEventListener("pointercancel", onPointerUp);
+      cropStage.removeEventListener("contextmenu", onContextMenu);
       cropSkipBtn.removeEventListener("click", onSkip);
       cropConfirmBtn.removeEventListener("click", onConfirm);
       URL.revokeObjectURL(url);
@@ -1018,6 +1044,7 @@ async function bevestigBonnetje(extraction, values, negeerDubbel) {
 // kunnen worden zonder de al gelukte nogmaals te versturen.
 async function runBonWizard(files, meta) {
   const mislukt = [];
+  let laatsteFout = "";
   let gelukt = 0;
   let overgeslagen = 0;
   let geannuleerd = false;
@@ -1043,6 +1070,7 @@ async function runBonWizard(files, meta) {
           extraction = await extractBonnetje(file, i);
         } catch (err) {
           mislukt.push(files[i]);
+          laatsteFout = "lezen: " + err.message;
           setWizardStatus("Kon dit bonnetje niet lezen: " + err.message, "error");
           await new Promise((r) => setTimeout(r, 1800));
           klaar = true;
@@ -1086,6 +1114,7 @@ async function runBonWizard(files, meta) {
           }
         } catch (err) {
           mislukt.push(files[i]);
+          laatsteFout = "opslaan: " + err.message;
           setWizardStatus("Kon dit bonnetje niet opslaan: " + err.message, "error");
           await new Promise((r) => setTimeout(r, 1800));
         }
@@ -1097,7 +1126,7 @@ async function runBonWizard(files, meta) {
     wizardOverlay.hidden = true;
     wizardCancelHandler = null;
   }
-  return { gelukt, mislukt, geannuleerd, overgeslagen };
+  return { gelukt, mislukt, geannuleerd, overgeslagen, laatsteFout };
 }
 
 // --- Tabs ---
@@ -1479,7 +1508,9 @@ form.addEventListener("submit", async (e) => {
     return;
   }
   const submittedByEmail = resolveSubmittedByEmail(wieBenJijSelect, wieBenJijAndersEmailInput);
-  if (!submittedByEmail || !submittedByEmail.includes("@")) {
+  // Alleen bij "Anders" verplicht: een vaste medewerker zonder adres in de config (demo-omgeving) valt in de flow
+  // terug op de vaste ontvanger, net als op het controlescherm.
+  if (wieBenJijSelect.value === "Anders" && (!submittedByEmail || !submittedByEmail.includes("@"))) {
     setStatus("Vul een geldig e-mailadres in.", "error");
     return;
   }
@@ -1494,7 +1525,7 @@ form.addEventListener("submit", async (e) => {
   setStatus("");
 
   try {
-    const { gelukt, mislukt, geannuleerd, overgeslagen } = await runBonWizard(teVersturen, {
+    const { gelukt, mislukt, geannuleerd, overgeslagen, laatsteFout } = await runBonWizard(teVersturen, {
       submittedBy,
       submittedByEmail,
       categorie: categorieSelect.value,
@@ -1528,9 +1559,10 @@ form.addEventListener("submit", async (e) => {
       // dat is verwarrend voor iets wat ze zelf net deden.
       setStatus(gelukt ? `${gelukt} bon(nen) verstuurd, de rest geannuleerd.` : "");
     } else if (gelukt) {
-      setStatus(`${gelukt} van ${teVersturen.length} bonnen verstuurd, ${mislukt.length} mislukt -- probeer de overgebleven foto('s) opnieuw.`, "error");
+      setStatus(`${gelukt} van ${teVersturen.length} bonnen verstuurd, ${mislukt.length} mislukt -- probeer de overgebleven foto('s) opnieuw.` +
+        (laatsteFout ? ` (Reden bij ${laatsteFout})` : ""), "error");
     } else {
-      setStatus("Er ging iets mis -- probeer het opnieuw.", "error");
+      setStatus("Er ging iets mis -- probeer het opnieuw." + (laatsteFout ? ` (Reden bij ${laatsteFout})` : ""), "error");
     }
   } finally {
     submitBtn.disabled = false;
