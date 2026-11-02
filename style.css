@@ -27,6 +27,10 @@ html, body {
   height: 100%;
 }
 
+html {
+  overflow-x: clip;
+}
+
 body {
   font-family: var(--text);
   margin: 0;
@@ -53,10 +57,12 @@ input, textarea, select {
 .glow {
   position: absolute;
   top: -160px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 640px;
-  max-width: 160vw;
+  /* Nooit breder dan het scherm: een uitstekende gloed laat iOS de hele pagina uitzoomen. */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 640px;
   height: 320px;
   background: radial-gradient(circle, rgba(30, 127, 216, 0.16) 0%, rgba(30, 127, 216, 0) 70%);
   filter: blur(10px);
@@ -350,7 +356,7 @@ input[type="text"],
 input[type="email"] {
   width: 100%;
   padding: 14px 16px;
-  font-size: 15px;
+  font-size: 16px; /* kleiner dan 16 px laat iOS inzoomen bij het aantikken */
   font-family: var(--text);
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
@@ -567,21 +573,28 @@ button#uitbetaalSubmitBtn:disabled {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: center;
   padding: 0;
 }
 
+/* Telefoon: de wizard vult het hele scherm, ook tijdens het laden. */
 .wizard-card {
   width: 100%;
   max-width: 480px;
-  max-height: 92vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--card-bg);
-  border-radius: 24px 24px 0 0;
-  padding: 22px 20px calc(24px + env(safe-area-inset-bottom));
-  box-shadow: 0 -20px 60px -20px rgba(15, 23, 32, 0.35);
+  padding: max(22px, calc(env(safe-area-inset-top) + 12px)) 20px calc(24px + env(safe-area-inset-bottom));
   animation: bon-pop 0.2s ease;
+}
+
+.wizard-card > * {
+  flex: none;
 }
 
 /* Op bredere schermen (desktop/tablet) oogt een onderaan-vastgeplakte
@@ -594,6 +607,7 @@ button#uitbetaalSubmitBtn:disabled {
   }
 
   .wizard-card {
+    height: auto;
     max-height: 85vh;
     border-radius: 24px;
     padding: 28px 24px;
@@ -640,13 +654,6 @@ button#uitbetaalSubmitBtn:disabled {
 .wizard-close:hover {
   background: var(--card-border);
   color: var(--ink);
-}
-
-.wizard-hint {
-  margin: 14px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
 }
 
 .wizard-actions {
@@ -746,8 +753,10 @@ button#uitbetaalSubmitBtn:disabled {
 
 .wizard-step#stepLoading {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   padding: 40px 0;
 }
 
@@ -783,7 +792,7 @@ button#uitbetaalSubmitBtn:disabled {
   /* "contain" i.p.v. "cover": laat de hele foto zien, ongeacht de
      verhouding (lange smalle bon of brede factuur) -- geen bijgesneden/
      ingezoomde weergave meer. De wizard-kaart zelf blijft scrollbaar
-     (zie .wizard-card, max-height: 92vh) dus zelfs bij een erg lange
+     (zie .wizard-card, vult het scherm) dus zelfs bij een erg lange
      foto blijven de velden en knoppen eronder gewoon bereikbaar. */
 }
 
@@ -860,29 +869,20 @@ button#uitbetaalSubmitBtn:disabled {
 
 .zoom-stage {
   flex: 1;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pinch-zoom pan-x pan-y;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none; /* knijpen en slepen doet app.js zelf */
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
 }
 
 .zoom-image {
   max-width: 100%;
   max-height: 100%;
-  touch-action: pinch-zoom pan-x pan-y;
+  pointer-events: none;
   transform-origin: center center;
-  transition: transform 0.15s ease;
-}
-
-.zoom-hint {
-  flex: none;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  padding: 4px 14px 14px;
 }
 
 .confirm-amount-row {
@@ -910,7 +910,7 @@ button#uitbetaalSubmitBtn:disabled {
 
 .confirm-currency-input {
   font-family: var(--text);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--blue);
   letter-spacing: 0.04em;
@@ -964,7 +964,7 @@ button#uitbetaalSubmitBtn:disabled {
   color: var(--ink);
   font-weight: 600;
   font-family: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   text-align: right;
   border: none;
   background: transparent;
@@ -1011,7 +1011,7 @@ button#uitbetaalSubmitBtn:disabled {
   width: 100%;
   text-align: left;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--text);
   color: var(--ink);
   background: var(--paper-2);

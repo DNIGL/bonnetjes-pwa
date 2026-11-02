@@ -548,9 +548,10 @@ const wizardCancelBtn = document.getElementById("wizardCancelBtn");
 const confirmZoomBtn = document.getElementById("confirmZoomBtn");
 
 // --- Zoomweergave (foto/PDF-voorbeeld groter bekijken) ---
-// Native pinch-to-zoom doet het werk op een telefoon (zie de
-// touch-action-regels in style.css); de +/- knoppen zijn er voor pc,
-// waar niemand een trackpad-knijpgebaar verwacht te moeten gebruiken.
+// Eigen knijp-zoom (twee vingers) en slepen (een vinger) via pointer events: de
+// pagina zelf kan niet zoomen (zie viewport en gesture-events hieronder), zodat
+// de app nooit op een andere schaal blijft hangen. De +/- knoppen en het
+// scrollwiel zijn er voor de pc.
 const zoomOverlay = document.getElementById("zoomOverlay");
 const zoomStage = document.getElementById("zoomStage");
 const zoomImage = document.getElementById("zoomImage");
@@ -559,32 +560,108 @@ const zoomOutBtn = document.getElementById("zoomOutBtn");
 const zoomResetBtn = document.getElementById("zoomResetBtn");
 const zoomCloseBtn = document.getElementById("zoomCloseBtn");
 
+const ZOOM_MAX = 6;
 let zoomScale = 1;
+let zoomX = 0; // verschuiving t.o.v. het midden van het vlak, in px
+let zoomY = 0;
+const zoomPointers = new Map();
+let zoomPinch = null; // {dist, cx, cy} van het vorige knijp-moment
 
-function setZoomScale(scale) {
-  zoomScale = Math.min(5, Math.max(1, scale));
-  zoomImage.style.transform = `scale(${zoomScale})`;
+// Zet de transform en houdt de afbeelding binnen beeld.
+function applyZoom() {
+  const maxX = Math.max(0, (zoomImage.offsetWidth * zoomScale - zoomStage.clientWidth) / 2);
+  const maxY = Math.max(0, (zoomImage.offsetHeight * zoomScale - zoomStage.clientHeight) / 2);
+  zoomX = Math.min(maxX, Math.max(-maxX, zoomX));
+  zoomY = Math.min(maxY, Math.max(-maxY, zoomY));
+  zoomImage.style.transform = `translate(${zoomX}px, ${zoomY}px) scale(${zoomScale})`;
+}
+
+// Zoomt naar `scale` en laat het punt (clientX, clientY) onder de vinger staan.
+function zoomAround(scale, clientX, clientY) {
+  const next = Math.min(ZOOM_MAX, Math.max(1, scale));
+  const r = zoomStage.getBoundingClientRect();
+  const px = clientX - (r.left + r.width / 2);
+  const py = clientY - (r.top + r.height / 2);
+  const k = next / zoomScale;
+  zoomX = px - (px - zoomX) * k;
+  zoomY = py - (py - zoomY) * k;
+  zoomScale = next;
+  applyZoom();
+}
+
+function zoomStep(scale) {
+  const r = zoomStage.getBoundingClientRect();
+  zoomAround(scale, r.left + r.width / 2, r.top + r.height / 2);
 }
 
 function openZoom(src) {
   zoomImage.src = src;
   zoomScale = 1;
-  zoomImage.style.transform = "scale(1)";
+  zoomX = 0;
+  zoomY = 0;
+  zoomPointers.clear();
+  zoomPinch = null;
+  zoomImage.style.transform = "";
   zoomOverlay.hidden = false;
-  requestAnimationFrame(() => {
-    zoomStage.scrollTop = 0;
-    zoomStage.scrollLeft = 0;
-  });
 }
 
 function closeZoom() {
   zoomOverlay.hidden = true;
   zoomImage.src = "";
+  zoomPointers.clear();
+  zoomPinch = null;
 }
 
-zoomInBtn.addEventListener("click", () => setZoomScale(zoomScale + 0.5));
-zoomOutBtn.addEventListener("click", () => setZoomScale(zoomScale - 0.5));
-zoomResetBtn.addEventListener("click", () => setZoomScale(1));
+zoomStage.addEventListener("pointerdown", (e) => {
+  zoomStage.setPointerCapture(e.pointerId);
+  zoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  zoomPinch = null;
+});
+zoomStage.addEventListener("pointermove", (e) => {
+  const prev = zoomPointers.get(e.pointerId);
+  if (!prev) return;
+  zoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (zoomPointers.size === 1) {
+    zoomX += e.clientX - prev.x;
+    zoomY += e.clientY - prev.y;
+    applyZoom();
+    return;
+  }
+  const [a, b] = Array.from(zoomPointers.values());
+  const dist = Math.hypot(a.x - b.x, a.y - b.y);
+  const cx = (a.x + b.x) / 2;
+  const cy = (a.y + b.y) / 2;
+  if (zoomPinch && zoomPinch.dist > 0) {
+    zoomX += cx - zoomPinch.cx;
+    zoomY += cy - zoomPinch.cy;
+    zoomAround(zoomScale * (dist / zoomPinch.dist), cx, cy);
+  }
+  zoomPinch = { dist, cx, cy };
+});
+function onZoomPointerEnd(e) {
+  zoomPointers.delete(e.pointerId);
+  zoomPinch = null;
+}
+zoomStage.addEventListener("pointerup", onZoomPointerEnd);
+zoomStage.addEventListener("pointercancel", onZoomPointerEnd);
+zoomStage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoomAround(zoomScale * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+}, { passive: false });
+
+// iOS: een knijpgebaar zoomt anders de hele pagina en die blijft dan zo staan.
+["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
+  document.addEventListener(type, (e) => e.preventDefault());
+});
+
+zoomInBtn.addEventListener("click", () => zoomStep(zoomScale + 0.5));
+zoomOutBtn.addEventListener("click", () => zoomStep(zoomScale - 0.5));
+zoomResetBtn.addEventListener("click", () => {
+  zoomScale = 1;
+  zoomX = 0;
+  zoomY = 0;
+  applyZoom();
+});
 zoomCloseBtn.addEventListener("click", closeZoom);
 zoomOverlay.addEventListener("click", (e) => {
   if (e.target === zoomOverlay) closeZoom();
@@ -603,6 +680,7 @@ wizardCancelBtn.addEventListener("click", () => {
 });
 
 function showWizardStep(name) {
+  document.querySelector(".wizard-card").scrollTop = 0;
   stepCrop.hidden = name !== "crop";
   stepLoading.hidden = name !== "loading";
   stepConfirm.hidden = name !== "confirm";

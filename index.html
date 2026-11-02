@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>DNIGL Bonnetjes</title>
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -92,8 +92,6 @@
         <p class="status-msg" id="statusMsg" role="status" aria-live="polite"></p>
       </form>
     </div>
-
-    <p class="footer-note">Bewaar je bonnetje totdat je een bevestiging hebt gekregen.</p>
     </section>
 
     <section id="tabOverzicht" class="tab-panel" hidden>
@@ -153,8 +151,6 @@
           <p class="status-msg" id="overzichtStatusMsg" role="status" aria-live="polite"></p>
         </form>
       </div>
-
-      <p class="footer-note">Het PDF-overzicht wordt naar het opgegeven e-mailadres gestuurd.</p>
       </div>
     </section>
 
@@ -207,7 +203,6 @@
           <div class="crop-handle" data-corner="2"></div>
           <div class="crop-handle" data-corner="3"></div>
         </div>
-        <p class="wizard-hint">Sleep de hoekpunten naar de randen van het bonnetje.</p>
         <div class="wizard-actions">
           <button type="button" class="btn-wizard-ghost" id="cropSkipBtn">Niet bijsnijden</button>
           <button type="button" class="btn-wizard-primary" id="cropConfirmBtn">Bijsnijden</button>
@@ -267,7 +262,6 @@
             <input type="email" id="confirmMedewerkerAndersEmailInput">
           </div>
         </div>
-        <p class="wizard-hint">Automatisch gelezen door Claude — controleer en pas aan waar nodig.</p>
         <div class="wizard-actions">
           <button type="button" class="btn-wizard-ghost" id="confirmRetryBtn">Opnieuw croppen</button>
           <button type="button" class="btn-wizard-primary" id="confirmSubmitBtn">Bevestig en verstuur</button>
@@ -310,7 +304,6 @@
     <div class="zoom-stage" id="zoomStage">
       <img id="zoomImage" class="zoom-image" alt="">
     </div>
-    <p class="zoom-hint">Op je telefoon: knijp om in/uit te zoomen. Op de pc: gebruik de knoppen hierboven.</p>
   </div>
 
   <script type="module">
