@@ -1226,7 +1226,17 @@ function selectTab(name) {
     tabButtons[key].setAttribute("aria-selected", String(active));
     tabPanels[key].hidden = !active;
   }
+  updatePaginaBreedte();
   if (name === "uitbetaal" && pincodeOntgrendeld) laadLijstEenmaal();
+}
+
+// Alleen het ontgrendelde tabblad Afronden krijgt op een computer extra breedte
+// voor de bonnenlijst (zie .page--breed in style.css); op een telefoon verandert er niets.
+function updatePaginaBreedte() {
+  document.querySelector(".page").classList.toggle(
+    "page--breed",
+    pincodeOntgrendeld && !tabPanels.uitbetaal.hidden,
+  );
 }
 
 for (const key of Object.keys(tabButtons)) {
@@ -1266,6 +1276,61 @@ medewerkerSelect.addEventListener("change", () => updateFilterTypeUI());
 overzichtKlantSelect.addEventListener("change", () => updateFilterTypeUI());
 filterTypeRadios.forEach((radio) => radio.addEventListener("change", updateFilterTypeUI));
 updateFilterTypeUI();
+
+// Openstaande bonnen (Flow 5): één gedeelde lijst voor het tabblad Afronden en
+// voor de klantkeuze hieronder, kort onthouden zodat wisselen tussen tabbladen
+// niet telkens de flow aanroept.
+let openstaandCache = null;
+const OPENSTAAND_GELDIG_MS = 30000;
+
+async function haalOpenstaandeBonnen(forceer = false) {
+  if (!forceer && openstaandCache && Date.now() - openstaandCache.tijd < OPENSTAAND_GELDIG_MS) {
+    return openstaandCache.items;
+  }
+  const res = await flowFetch(CONFIG.listFlowUrl, {});
+  if (!res.ok) throw new Error("serverfout (" + res.status + ")");
+  const items = await res.json();
+  openstaandCache = { tijd: Date.now(), items };
+  return items;
+}
+
+// Klantkeuze bij "Filteren op: Klant": alleen klanten waarvoor bonnen in het
+// systeem staan (Status Processed, precies wat Flow 2 meeneemt). Lukt het ophalen
+// niet, of levert de flow geen klantnamen, dan blijft de vaste lijst staan.
+let overzichtKlantenLaadId = 0;
+async function vulOverzichtKlanten() {
+  const laadId = ++overzichtKlantenLaadId;
+  const vasteLijst = () => fillSelect(overzichtKlantSelect, [...CONFIG.clients, "Anders"]);
+  if (!CONFIG.listFlowUrl) {
+    vasteLijst();
+    return;
+  }
+  overzichtKlantSelect.innerHTML = '<option value="">Klanten laden...</option>';
+  overzichtKlantSelect.disabled = true;
+  try {
+    const items = await haalOpenstaandeBonnen();
+    if (laadId !== overzichtKlantenLaadId) return;
+    if (items.length && !items.some((item) => "Client" in item)) {
+      vasteLijst();
+    } else {
+      const klanten = [...new Set(items.map((item) => (item.Client || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }));
+      overzichtKlantSelect.innerHTML = klanten.length
+        ? klanten.map((k) => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("")
+        : '<option value="">Geen klanten met bonnen</option>';
+    }
+  } catch (err) {
+    if (laadId === overzichtKlantenLaadId) vasteLijst();
+  } finally {
+    if (laadId === overzichtKlantenLaadId) {
+      overzichtKlantSelect.disabled = false;
+      updateFilterTypeUI();
+    }
+  }
+}
+filterTypeRadios.forEach((radio) => radio.addEventListener("change", () => {
+  if (radio.checked && radio.value === "klant") vulOverzichtKlanten();
+}));
 
 // Auto-inserts dashes as the user types digits, so the field always reads
 // dd-mm-jjjj regardless of the device's locale settings (unlike a native
@@ -1384,7 +1449,10 @@ overzichtForm.addEventListener("submit", async (e) => {
   const filterType = document.querySelector('input[name="filterType"]:checked').value;
   const klantVoorOverzicht = resolveWithAnders(overzichtKlantSelect, overzichtKlantAndersInput, normaliseKlantnaam);
   if (filterType === "klant" && !klantVoorOverzicht) {
-    setOverzichtStatus("Vul de naam van de klant in.", "error");
+    setOverzichtStatus(
+      overzichtKlantSelect.value === "Anders" ? "Vul de naam van de klant in." : "Kies een klant.",
+      "error",
+    );
     return;
   }
   // Zelfde normalisatie (titleCase) als bij het indienen, want Flow 2 vergelijkt
@@ -1413,6 +1481,8 @@ overzichtForm.addEventListener("submit", async (e) => {
     overzichtForm.reset();
     zetVorigeMaandAlsStandaard();
     fillSelect(medewerkerSelect, [...CONFIG.employees, "Anders"]);
+    overzichtKlantenLaadId++;
+    overzichtKlantSelect.disabled = false;
     fillSelect(overzichtKlantSelect, [...CONFIG.clients, "Anders"]);
     medewerkerAndersInput.value = "";
     overzichtKlantAndersInput.value = "";
@@ -1454,22 +1524,36 @@ async function laadBonnetjesLijst() {
     return;
   }
   try {
-    const res = await flowFetch(CONFIG.listFlowUrl, {});
-    if (!res.ok) throw new Error("serverfout (" + res.status + ")");
-    const items = await res.json();
+    const items = await haalOpenstaandeBonnen(true);
     if (!items.length) {
       bonnetjesLijst.innerHTML = '<p class="bon-lijst-empty">Geen openstaande bonnetjes gevonden.</p>';
       return;
     }
-    bonnetjesLijst.innerHTML = items.map((item) => `
-      <label class="bon-checkbox">
+    // Een flow die nog geen klant meestuurt (oudere versie) geeft een lijst zonder klantkolom.
+    const metKlant = items.some((item) => item.Client);
+    bonnetjesLijst.classList.toggle("bon-lijst--zonder-klant", !metKlant);
+    const kop = `
+      <div class="bon-rij bon-kop" aria-hidden="true">
+        <span></span>
+        <span>Leverancier</span>
+        ${metKlant ? "<span>Klant</span>" : ""}
+        <span>Datum</span>
+        <span>Medewerker</span>
+        <span class="bon-bedrag">Bedrag</span>
+      </div>`;
+    const rijen = items.map((item) => `
+      <label class="bon-rij">
         <input type="checkbox" class="bon-check" value="${item.ID}" checked>
-        <span>
-          <div class="bon-checkbox-main">${escapeHtml(item.Vendor)} &middot; &euro; ${escapeHtml(item.AmountEUR)}</div>
-          <div class="bon-checkbox-sub">${escapeHtml(item.ReceiptDate)} &middot; ${escapeHtml(item.SubmittedBy || "onbekend")}</div>
+        <span class="bon-leverancier" title="${escapeHtml(item.Vendor)}">${escapeHtml(item.Vendor)}</span>
+        <span class="bon-bedrag">&euro; ${escapeHtml(item.AmountEUR)}</span>
+        <span class="bon-meta">
+          ${metKlant ? `<span class="bon-klant">${escapeHtml(item.Client || "onbekend")}</span>` : ""}
+          <span class="bon-datum">${escapeHtml(item.ReceiptDate)}</span>
+          <span class="bon-indiener">${escapeHtml(item.SubmittedBy || "onbekend")}</span>
         </span>
       </label>
     `).join("");
+    bonnetjesLijst.innerHTML = kop + rijen;
   } catch (err) {
     bonnetjesLijst.innerHTML = `<p class="bon-lijst-empty">Kon de lijst niet laden: ${escapeHtml(err.message)}</p>`;
   }
@@ -1485,7 +1569,7 @@ deselecteerAllesBtn.addEventListener("click", () => {
 // Individuele pincode-vakjes die vanzelf doorschakelen en automatisch
 // controleren zodra alle vakjes gevuld zijn (zoals een telefoon-pincode),
 // i.p.v. één tekstveld met een aparte "Ontgrendelen"-knop.
-// De pincode beschermt alleen het tabblad Uitbetalen (items op Paid zetten);
+// De pincode beschermt alleen het tabblad Afronden (items op Paid zetten);
 // het tabblad Overzicht is vrij toegankelijk.
 let pincodeOntgrendeld = false;
 let bonnenlijstGeladen = false;
@@ -1500,6 +1584,7 @@ function ontgrendelPincode() {
   pincodeOntgrendeld = true;
   pincodeWrap.hidden = true;
   uitbetaalActieWrap.hidden = false;
+  updatePaginaBreedte();
   if (!tabPanels.uitbetaal.hidden) laadLijstEenmaal();
 }
 
@@ -1565,6 +1650,7 @@ uitbetaalSubmitBtn.addEventListener("click", async () => {
     if (!res.ok) throw new Error("serverfout (" + res.status + ")");
     uitbetaalStatusMsg.textContent = "Uitbetaalronde gestart -- je ontvangt zo het overzicht per e-mail.";
     uitbetaalStatusMsg.dataset.state = "success";
+    openstaandCache = null;
   } catch (err) {
     uitbetaalStatusMsg.textContent = "Er ging iets mis: " + err.message;
     uitbetaalStatusMsg.dataset.state = "error";

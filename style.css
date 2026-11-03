@@ -291,10 +291,13 @@ h1 {
   text-align: center;
 }
 
-.bon-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+/* Telefoon: twee regels per bon (leverancier links, bedrag rechts; daaronder klant,
+   datum en medewerker). De kopregel hoort alleen bij de brede weergave. */
+.bon-rij {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: start;
   padding: 12px 14px;
   border-bottom: 1px solid var(--card-border);
   cursor: pointer;
@@ -302,28 +305,150 @@ h1 {
   margin: 0;
 }
 
-.bon-checkbox:last-child {
+.bon-rij:last-child {
   border-bottom: none;
 }
 
-.bon-checkbox input[type="checkbox"] {
-  margin-top: 2px;
-  flex: none;
+.bon-rij input[type="checkbox"] {
+  grid-row: 1 / span 2;
+  margin: 2px 0 0;
   width: 16px;
   height: 16px;
   accent-color: var(--blue);
 }
 
-.bon-checkbox-main {
+.bon-leverancier {
   font-size: 14px;
-  color: var(--ink);
   font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
-.bon-checkbox-sub {
+.bon-bedrag {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bon-meta {
+  grid-column: 2 / span 2;
   font-size: 12px;
   color: var(--muted);
   margin-top: 2px;
+}
+
+.bon-meta > span + span::before {
+  content: "\00a0\00b7\00a0";
+}
+
+.bon-kop {
+  display: none;
+}
+
+/* Computer, ontgrendeld tabblad Afronden: de pagina is dubbel zo breed (zie .page--breed)
+   en elke bon wordt een nette rij met vaste kolommen. */
+@media (min-width: 900px) {
+  .page--breed {
+    max-width: 960px;
+  }
+
+  .bon-lijst {
+    --bon-kolommen: 18px minmax(0, 2fr) minmax(0, 1.3fr) 110px minmax(0, 1fr) 100px;
+    max-height: min(62vh, 620px);
+  }
+
+  .bon-lijst.bon-lijst--zonder-klant {
+    --bon-kolommen: 18px minmax(0, 2fr) 110px minmax(0, 1fr) 100px;
+  }
+
+  .bon-rij {
+    grid-template-columns: var(--bon-kolommen);
+    column-gap: 18px;
+    align-items: center;
+    padding: 14px 20px;
+  }
+
+  .bon-rij input[type="checkbox"] {
+    grid-row: 1;
+    grid-column: 1;
+    margin: 0;
+  }
+
+  /* De wrapper met klant, datum en medewerker vervalt: elk wordt een eigen kolom,
+     achter leverancier en bedrag in de DOM, daarom vaste plekken in het raster. */
+  .bon-meta {
+    display: contents;
+  }
+
+  .bon-meta > span + span::before {
+    content: none;
+  }
+
+  .bon-leverancier {
+    grid-row: 1;
+    grid-column: 2;
+    font-size: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bon-bedrag {
+    grid-row: 1;
+    grid-column: -2;
+    font-size: 15px;
+  }
+
+  .bon-klant { grid-column: 3; }
+  .bon-datum { grid-column: 4; }
+  .bon-indiener { grid-column: 5; }
+
+  .bon-lijst--zonder-klant .bon-datum { grid-column: 3; }
+  .bon-lijst--zonder-klant .bon-indiener { grid-column: 4; }
+
+  .bon-klant,
+  .bon-datum,
+  .bon-indiener {
+    grid-row: 1;
+    font-size: 14px;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bon-datum,
+  .bon-indiener {
+    color: var(--muted);
+  }
+
+  .bon-rij:not(.bon-kop):hover {
+    background: var(--paper);
+  }
+
+  .bon-kop {
+    display: grid;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-block: 10px;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--card-border);
+    cursor: default;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bon-kop .bon-bedrag {
+    font-size: 11px;
+    color: var(--muted);
+  }
 }
 
 .card {
