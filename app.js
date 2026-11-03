@@ -1816,8 +1816,8 @@ function kmTotaal() {
 }
 
 function updateKmTotaal() {
-  // pijltje tussen vertrek en aankomst: één richting bij enkele reis, twee richtingen bij retour
-  document.getElementById("kmPijl").textContent = kmIsRetour() ? "↕" : "↓";
+  // route-lijn tussen vertrek en aankomst: één pijl bij enkele reis, twee richtingen bij retour
+  document.getElementById("kmRoute").classList.toggle("km-route--retour", kmIsRetour());
   const enkel = leesKmAfstand(kmAfstandInput.value);
   if (enkel === null) {
     kmTotaalHint.textContent = "";

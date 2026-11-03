@@ -85,14 +85,27 @@
               <label for="kmRetour">Retour</label>
             </div>
           </div>
-          <div class="field km-van">
-            <label for="kmVan">Vertrekplaats</label>
-            <input type="text" id="kmVan" maxlength="80" placeholder="Bijv. Utrecht" autocomplete="off">
-          </div>
-          <div class="km-pijl" id="kmPijl" aria-hidden="true">&darr;</div>
-          <div class="field">
-            <label for="kmNaar">Aankomstplaats</label>
-            <input type="text" id="kmNaar" maxlength="80" placeholder="Bijv. Rotterdam" autocomplete="off">
+          <div class="km-route" id="kmRoute">
+            <div class="km-rail" aria-hidden="true">
+              <span class="km-dot km-dot--open"></span>
+              <span class="km-lijn">
+                <span class="km-richting">
+                  <svg class="km-pijl-enkel" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M18 13l-6 6-6-6"/></svg>
+                  <svg class="km-pijl-retour" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18"/><path d="M10 6L7 3 4 6"/><path d="M20 18l-3 3-3-3"/><path d="M17 21V3"/></svg>
+                </span>
+              </span>
+              <span class="km-dot"></span>
+            </div>
+            <div class="km-velden">
+              <div class="field">
+                <label for="kmVan">Vertrekplaats</label>
+                <input type="text" id="kmVan" maxlength="80" placeholder="Bijv. Utrecht" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="kmNaar">Aankomstplaats</label>
+                <input type="text" id="kmNaar" maxlength="80" placeholder="Bijv. Rotterdam" autocomplete="off">
+              </div>
+            </div>
           </div>
           <div class="field">
             <label for="kmAfstand">Aantal kilometers</label>

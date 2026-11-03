@@ -203,6 +203,7 @@ h1 {
 }
 
 .km-totaal {
+  margin: -16px 0 12px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -217,16 +218,79 @@ h1 {
   margin-top: 0;
 }
 
-#kmWrap .km-van {
+/* Route: vertrek en aankomst met een lijn ertussen (open bolletje = vertrek, gevuld = aankomst). Het bolletje op de lijn toont
+   één pijl bij enkele reis en twee bij retour. --km-label is de hoogte van titel plus ruimte, --km-veld de hoogte van een tekstvak. */
+.km-route {
+  --km-label: 25px;
+  --km-veld: 45px;
+  position: relative;
+  margin-bottom: 22px;
+}
+
+.km-velden {
+  padding-left: 28px;
+}
+
+.km-velden .field:last-child {
   margin-bottom: 0;
 }
 
-.km-pijl {
-  text-align: center;
-  font-size: 20px;
-  line-height: 1;
-  color: var(--muted);
-  padding: 8px 0;
+.km-rail {
+  position: absolute;
+  left: 0;
+  top: calc(var(--km-label) + var(--km-veld) / 2 - 5px);
+  bottom: calc(var(--km-veld) / 2 - 5px);
+  width: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.km-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--blue);
+}
+
+.km-dot--open {
+  background: var(--card-bg);
+  border: 2px solid var(--blue);
+}
+
+.km-lijn {
+  position: relative;
+  flex: 1;
+  width: 2px;
+  margin: 2px 0;
+  background: rgba(30, 127, 216, 0.35);
+}
+
+.km-richting {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--blue);
+}
+
+.km-pijl-retour,
+.km-route--retour .km-pijl-enkel {
+  display: none;
+}
+
+.km-route--retour .km-pijl-retour {
+  display: block;
 }
 
 .km-totaal:empty {
