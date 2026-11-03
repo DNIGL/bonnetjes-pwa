@@ -27,6 +27,10 @@ const CONFIG = {
   // default before relying on it.
   uitbetaalPincode: "2019",
 
+  // Kilometers indienen naast bonnetjes (schakelaar op het tabblad Bon indienen). Alleen aan als Flow 1 de actie
+  // "kilometers" kent; een omgeving zonder die flow-uitbreiding (zoals de demo) laat de regel weg.
+  kilometers: true,
+
   // Hardcoded per CLAUDE.md -- editing this list means editing the code
   // and redeploying, which is fine at this scale.
   employees: ["Edwin", "Niels", "Stijn"],

@@ -1560,6 +1560,11 @@ function zichtbareBonnen() {
   return lijst.sort((a, b) => richting * vergelijk(a, b) || a.ID - b.ID);
 }
 
+// Kilometerregels hebben de route als leverancier; de afstand komt erachter.
+function bonOmschrijving(item) {
+  return item.Kilometers ? `${item.Vendor} · ${formatKm(item.Kilometers)} km` : String(item.Vendor ?? "");
+}
+
 function toonBonnen() {
   const rijenEl = document.getElementById("bonRijen");
   const samenvattingEl = document.getElementById("bonSamenvatting");
@@ -1567,7 +1572,7 @@ function toonBonnen() {
   rijenEl.innerHTML = zichtbaar.length ? zichtbaar.map((item) => `
       <label class="bon-rij">
         <input type="checkbox" class="bon-check" value="${item.ID}"${bonnenGeselecteerd.has(item.ID) ? " checked" : ""}>
-        <span class="bon-leverancier" title="${escapeHtml(item.Vendor)}">${escapeHtml(item.Vendor)}</span>
+        <span class="bon-leverancier" title="${escapeHtml(bonOmschrijving(item))}">${escapeHtml(bonOmschrijving(item))}</span>
         <span class="bon-bedrag">&euro; ${escapeHtml(item.AmountEUR)}</span>
         <span class="bon-meta">
           ${bonnenMetKlant ? `<span class="bon-klant">${escapeHtml(item.Client || ONBEKEND)}</span>` : ""}
@@ -1770,9 +1775,136 @@ uitbetaalSubmitBtn.addEventListener("click", async () => {
   }
 });
 
+// --- Kilometers indienen ---
+// Naast een bonnetje kan iemand kilometers declareren: vertrek- en aankomstplaats, de afstand van een enkele reis en
+// of het enkel of retour was. Er is geen foto en geen categorie; klant en toelichting blijven zoals bij een bon.
+// De flow rekent er het bedrag bij uit en zet de regel in het kilometerblok van het overzicht (zie CLAUDE.md).
+const KM_MAX_ENKEL = 1500;
+const soortField = document.getElementById("soortField");
+const fotoField = document.getElementById("fotoField");
+const categorieField = document.getElementById("categorieField");
+const kmWrap = document.getElementById("kmWrap");
+const kmVanInput = document.getElementById("kmVan");
+const kmNaarInput = document.getElementById("kmNaar");
+const kmAfstandInput = document.getElementById("kmAfstand");
+const kmDatumInput = document.getElementById("kmDatum");
+const kmTotaalHint = document.getElementById("kmTotaal");
+
+function kmActief() {
+  return Boolean(CONFIG.kilometers) && document.getElementById("soortKm").checked;
+}
+
+function kmIsRetour() {
+  return document.getElementById("kmRetour").checked;
+}
+
+// Komma of punt als decimaalteken; geeft null bij iets anders dan een positief getal met hooguit 2 decimalen.
+function leesKmAfstand(tekst) {
+  const t = String(tekst).trim().replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+  const n = parseFloat(t);
+  return n > 0 && n <= KM_MAX_ENKEL ? n : null;
+}
+
+function formatKm(n) {
+  return Number(n).toLocaleString("nl-NL", { maximumFractionDigits: 2 });
+}
+
+function kmTotaal() {
+  const enkel = leesKmAfstand(kmAfstandInput.value);
+  return enkel === null ? null : Math.round(enkel * (kmIsRetour() ? 2 : 1) * 100) / 100;
+}
+
+function updateKmTotaal() {
+  const enkel = leesKmAfstand(kmAfstandInput.value);
+  if (enkel === null) {
+    kmTotaalHint.textContent = "";
+    return;
+  }
+  kmTotaalHint.textContent = kmIsRetour()
+    ? `Totaal: ${formatKm(kmTotaal())} km (2 × ${formatKm(enkel)})`
+    : `Totaal: ${formatKm(enkel)} km`;
+}
+
+function vandaagAlsDatum() {
+  const nu = new Date();
+  return `${String(nu.getDate()).padStart(2, "0")}-${String(nu.getMonth() + 1).padStart(2, "0")}-${nu.getFullYear()}`;
+}
+
+function updateSoort() {
+  const km = kmActief();
+  fotoField.hidden = km;
+  categorieField.hidden = km;
+  kmWrap.hidden = !km;
+  updateKmTotaal();
+}
+
+if (CONFIG.kilometers) {
+  soortField.hidden = false;
+  kmDatumInput.value = vandaagAlsDatum();
+  document.querySelectorAll('input[name="soort"]').forEach((radio) => radio.addEventListener("change", updateSoort));
+  document.querySelectorAll('input[name="kmReis"]').forEach((radio) => radio.addEventListener("change", updateKmTotaal));
+  kmAfstandInput.addEventListener("input", updateKmTotaal);
+  kmDatumInput.addEventListener("input", formatDatumInput);
+}
+
+async function verstuurKilometers({ submittedBy, klant }) {
+  const van = kmVanInput.value.trim();
+  const naar = kmNaarInput.value.trim();
+  if (!van || !naar) {
+    setStatus("Vul de vertrek- en aankomstplaats in.", "error");
+    return;
+  }
+  const totaal = kmTotaal();
+  if (totaal === null) {
+    setStatus(`Vul het aantal kilometers in (hooguit ${formatKm(KM_MAX_ENKEL)} per enkele reis).`, "error");
+    return;
+  }
+  const datum = parseDutchDate(kmDatumInput.value);
+  if (!datum) {
+    setStatus("Vul een geldige datum in (dd-mm-jjjj).", "error");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  setStatus("Kilometers worden verstuurd...");
+  try {
+    const res = await flowFetch(CONFIG.flowUrl, {
+      Actie: "kilometers",
+      SubmittedBy: submittedBy,
+      Klant: klant,
+      Toelichting: document.getElementById("toelichting").value.trim(),
+      Van: van,
+      Naar: naar,
+      Retour: kmIsRetour(),
+      Kilometers: totaal,
+      ReceiptDate: datum.iso,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.success === false) throw new Error(data.error || "serverfout (" + res.status + ")");
+    setStatus(`Kilometers verstuurd (${formatKm(totaal)} km), bedankt!`, "success");
+    form.reset();
+    fillSelect(wieBenJijSelect, [...CONFIG.employees, "Anders"]);
+    fillSelect(categorieSelect, CONFIG.categories);
+    fillSelect(klantSelect, [...CONFIG.clients, "Anders"]);
+    wieBenJijAndersWrap.hidden = true;
+    wieBenJijAndersInput.value = "";
+    wieBenJijAndersEmailInput.value = "";
+    klantAndersWrap.hidden = true;
+    klantAndersInput.value = "";
+    kmDatumInput.value = vandaagAlsDatum();
+    updateSoort();
+  } catch (err) {
+    setStatus("Er ging iets mis: " + err.message, "error");
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!selectedFiles.length) {
+  const kilometers = kmActief();
+  if (!kilometers && !selectedFiles.length) {
     setStatus("Kies eerst minstens één foto.");
     return;
   }
@@ -1792,6 +1924,11 @@ form.addEventListener("submit", async (e) => {
   const klant = resolveWithAnders(klantSelect, klantAndersInput, normaliseKlantnaam);
   if (!klant) {
     setStatus("Vul de klantnaam in.", "error");
+    return;
+  }
+
+  if (kilometers) {
+    await verstuurKilometers({ submittedBy, klant });
     return;
   }
 
