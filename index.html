@@ -78,25 +78,25 @@
 
         <div id="kmWrap" hidden>
           <div class="field">
-            <label for="kmVan">Vertrekplaats</label>
-            <input type="text" id="kmVan" maxlength="80" placeholder="Bijv. Utrecht" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="kmNaar">Aankomstplaats</label>
-            <input type="text" id="kmNaar" maxlength="80" placeholder="Bijv. Rotterdam" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="kmAfstand">Aantal kilometers (enkele reis)</label>
-            <input type="text" id="kmAfstand" inputmode="decimal" maxlength="7" placeholder="Bijv. 35" autocomplete="off">
-          </div>
-          <div class="field">
-            <label>Reis</label>
             <div class="filter-toggle">
               <input type="radio" name="kmReis" id="kmEnkel" value="enkel" checked>
               <label for="kmEnkel">Enkele reis</label>
               <input type="radio" name="kmReis" id="kmRetour" value="retour">
               <label for="kmRetour">Retour</label>
             </div>
+          </div>
+          <div class="field km-van">
+            <label for="kmVan">Vertrekplaats</label>
+            <input type="text" id="kmVan" maxlength="80" placeholder="Bijv. Utrecht" autocomplete="off">
+          </div>
+          <div class="km-pijl" id="kmPijl" aria-hidden="true">&darr;</div>
+          <div class="field">
+            <label for="kmNaar">Aankomstplaats</label>
+            <input type="text" id="kmNaar" maxlength="80" placeholder="Bijv. Rotterdam" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="kmAfstand">Aantal kilometers</label>
+            <input type="text" id="kmAfstand" inputmode="decimal" maxlength="7" placeholder="Bijv. 35" autocomplete="off">
           </div>
           <p class="field-hint km-totaal" id="kmTotaal"></p>
           <div class="field">

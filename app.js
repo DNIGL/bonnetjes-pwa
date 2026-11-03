@@ -1816,6 +1816,8 @@ function kmTotaal() {
 }
 
 function updateKmTotaal() {
+  // pijltje tussen vertrek en aankomst: één richting bij enkele reis, twee richtingen bij retour
+  document.getElementById("kmPijl").textContent = kmIsRetour() ? "↕" : "↓";
   const enkel = leesKmAfstand(kmAfstandInput.value);
   if (enkel === null) {
     kmTotaalHint.textContent = "";

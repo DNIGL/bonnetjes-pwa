@@ -207,6 +207,28 @@ h1 {
   color: var(--muted);
 }
 
+/* Kilometerformulier: elk veld houdt zijn ruimte (ook het laatste, anders plakt Toelichting eraan) en de tekstvakken staan
+   even dicht onder hun titel als de keuzelijsten (geen extra ruimte boven een tekstveld). */
+#kmWrap .field {
+  margin-bottom: 22px;
+}
+
+#kmWrap input[type="text"] {
+  margin-top: 0;
+}
+
+#kmWrap .km-van {
+  margin-bottom: 0;
+}
+
+.km-pijl {
+  text-align: center;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  padding: 8px 0;
+}
+
 .km-totaal:empty {
   display: none;
 }
