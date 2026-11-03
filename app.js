@@ -1517,8 +1517,104 @@ function escapeHtml(text) {
   })[c]);
 }
 
+// Afronden: sorteren en filteren gebeurt in de browser op de lijst uit Flow 5.
+// De selectie staat per bon-ID in een Set, zodat die behouden blijft bij sorteren/filteren;
+// de lijst toont (en "Start uitbetaalronde" verstuurt) alleen wat zichtbaar is.
+const ONBEKEND = "onbekend";
+let bonnen = [];
+let bonnenMetKlant = false;
+let bonnenGeselecteerd = new Set();
+const bonnenFilter = { klant: "", medewerker: "" };
+let bonnenSortering = null; // { kolom, richting } of null: volgorde zoals de flow die geeft
+// Eerste klik per kolom: datum en bedrag van nieuw/hoog naar oud/laag, leverancier A-Z; tweede klik draait om.
+const EERSTE_RICHTING = { leverancier: "asc", datum: "desc", bedrag: "desc" };
+
+// "dd-mm-jjjj" -> "jjjjmmdd", zodat tekstvergelijking op datum klopt.
+function datumSleutel(tekst) {
+  const [dag, maand, jaar] = String(tekst ?? "").split("-");
+  return `${jaar}${maand}${dag}`;
+}
+
+// Bedrag als tekst in nl-NL ("1.234,50") of en-US ("1,234.50"): de laatste scheider met twee cijfers erachter is de decimale.
+function bedragNummer(tekst) {
+  const t = String(tekst ?? "").trim();
+  const m = t.match(/^(.*?)[.,](\d{2})$/);
+  const heel = (m ? m[1] : t).replace(/\D/g, "") || "0";
+  const waarde = parseFloat(`${heel}.${m ? m[2] : "00"}`);
+  return t.startsWith("-") ? -waarde : waarde;
+}
+
+const SORTEER_VERGELIJK = {
+  leverancier: (a, b) => String(a.Vendor || "").localeCompare(String(b.Vendor || ""), "nl", { sensitivity: "base" }),
+  datum: (a, b) => datumSleutel(a.ReceiptDate).localeCompare(datumSleutel(b.ReceiptDate)),
+  bedrag: (a, b) => bedragNummer(a.AmountEUR) - bedragNummer(b.AmountEUR),
+};
+
+function zichtbareBonnen() {
+  const lijst = bonnen.filter((bon) =>
+    (!bonnenFilter.klant || (bon.Client || ONBEKEND) === bonnenFilter.klant) &&
+    (!bonnenFilter.medewerker || (bon.SubmittedBy || ONBEKEND) === bonnenFilter.medewerker));
+  if (!bonnenSortering) return lijst;
+  const vergelijk = SORTEER_VERGELIJK[bonnenSortering.kolom];
+  const richting = bonnenSortering.richting === "asc" ? 1 : -1;
+  return lijst.sort((a, b) => richting * vergelijk(a, b) || a.ID - b.ID);
+}
+
+function toonBonnen() {
+  const rijenEl = document.getElementById("bonRijen");
+  const samenvattingEl = document.getElementById("bonSamenvatting");
+  const zichtbaar = zichtbareBonnen();
+  rijenEl.innerHTML = zichtbaar.length ? zichtbaar.map((item) => `
+      <label class="bon-rij">
+        <input type="checkbox" class="bon-check" value="${item.ID}"${bonnenGeselecteerd.has(item.ID) ? " checked" : ""}>
+        <span class="bon-leverancier" title="${escapeHtml(item.Vendor)}">${escapeHtml(item.Vendor)}</span>
+        <span class="bon-bedrag">&euro; ${escapeHtml(item.AmountEUR)}</span>
+        <span class="bon-meta">
+          ${bonnenMetKlant ? `<span class="bon-klant">${escapeHtml(item.Client || ONBEKEND)}</span>` : ""}
+          <span class="bon-datum">${escapeHtml(item.ReceiptDate)}</span>
+          <span class="bon-indiener">${escapeHtml(item.SubmittedBy || ONBEKEND)}</span>
+        </span>
+      </label>
+    `).join("") : '<p class="bon-lijst-empty">Geen bonnen voor dit filter.</p>';
+  updateBonnenSamenvatting(zichtbaar);
+  const pijlen = document.querySelectorAll("[data-sorteer] .bon-pijl");
+  pijlen.forEach((pijl) => {
+    const kolom = pijl.parentElement.dataset.sorteer;
+    const actief = bonnenSortering && bonnenSortering.kolom === kolom;
+    pijl.textContent = actief ? (bonnenSortering.richting === "asc" ? "↑" : "↓") : "↕";
+    pijl.classList.toggle("bon-pijl--actief", Boolean(actief));
+  });
+  if (samenvattingEl) samenvattingEl.hidden = false;
+}
+
+function updateBonnenSamenvatting(zichtbaar) {
+  const gekozen = zichtbaar.filter((bon) => bonnenGeselecteerd.has(bon.ID));
+  const totaal = gekozen.reduce((som, bon) => som + bedragNummer(bon.AmountEUR), 0);
+  const taal = document.documentElement.lang === "en" ? "en-US" : "nl-NL";
+  document.getElementById("bonSamenvatting").textContent =
+    `${gekozen.length} van ${zichtbaar.length} geselecteerd · € ${totaal.toLocaleString(taal, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function bonnenKopHtml() {
+  const unieke = (waarden) => [...new Set(waarden)].sort((a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }));
+  const opties = (waarden) => unieke(waarden)
+    .map((w) => `<option value="${escapeHtml(w)}">${escapeHtml(w)}</option>`).join("");
+  const sorteerKnop = (kolom, tekst, klasse = "") =>
+    `<button type="button" class="bon-sorteer ${klasse}" data-sorteer="${kolom}">${tekst}<span class="bon-pijl"></span></button>`;
+  return `
+      <div class="bon-rij bon-kop">
+        <span></span>
+        ${sorteerKnop("leverancier", "Leverancier")}
+        ${bonnenMetKlant ? `<select class="bon-filter" data-filter="klant" aria-label="Klant"><option value="">Alle klanten</option>${opties(bonnen.map((b) => b.Client || ONBEKEND))}</select>` : ""}
+        ${sorteerKnop("datum", "Datum")}
+        <select class="bon-filter" data-filter="medewerker" aria-label="Medewerker"><option value="">Alle medewerkers</option>${opties(bonnen.map((b) => b.SubmittedBy || ONBEKEND))}</select>
+        ${sorteerKnop("bedrag", "Bedrag", "bon-bedrag")}
+      </div>`;
+}
+
 async function laadBonnetjesLijst() {
   bonnetjesLijst.innerHTML = '<p class="bon-lijst-empty">Bonnetjes laden...</p>';
+  document.getElementById("bonSamenvatting").hidden = true;
   if (!CONFIG.listFlowUrl) {
     bonnetjesLijst.innerHTML = '<p class="bon-lijst-empty">listFlowUrl ontbreekt in config.js.</p>';
     return;
@@ -1529,41 +1625,51 @@ async function laadBonnetjesLijst() {
       bonnetjesLijst.innerHTML = '<p class="bon-lijst-empty">Geen openstaande bonnetjes gevonden.</p>';
       return;
     }
+    bonnen = items;
     // Een flow die nog geen klant meestuurt (oudere versie) geeft een lijst zonder klantkolom.
-    const metKlant = items.some((item) => item.Client);
-    bonnetjesLijst.classList.toggle("bon-lijst--zonder-klant", !metKlant);
-    const kop = `
-      <div class="bon-rij bon-kop" aria-hidden="true">
-        <span></span>
-        <span>Leverancier</span>
-        ${metKlant ? "<span>Klant</span>" : ""}
-        <span>Datum</span>
-        <span>Medewerker</span>
-        <span class="bon-bedrag">Bedrag</span>
-      </div>`;
-    const rijen = items.map((item) => `
-      <label class="bon-rij">
-        <input type="checkbox" class="bon-check" value="${item.ID}" checked>
-        <span class="bon-leverancier" title="${escapeHtml(item.Vendor)}">${escapeHtml(item.Vendor)}</span>
-        <span class="bon-bedrag">&euro; ${escapeHtml(item.AmountEUR)}</span>
-        <span class="bon-meta">
-          ${metKlant ? `<span class="bon-klant">${escapeHtml(item.Client || "onbekend")}</span>` : ""}
-          <span class="bon-datum">${escapeHtml(item.ReceiptDate)}</span>
-          <span class="bon-indiener">${escapeHtml(item.SubmittedBy || "onbekend")}</span>
-        </span>
-      </label>
-    `).join("");
-    bonnetjesLijst.innerHTML = kop + rijen;
+    bonnenMetKlant = items.some((item) => item.Client);
+    bonnetjesLijst.classList.toggle("bon-lijst--zonder-klant", !bonnenMetKlant);
+    bonnenGeselecteerd = new Set(items.map((item) => item.ID));
+    bonnenFilter.klant = "";
+    bonnenFilter.medewerker = "";
+    bonnenSortering = null;
+    bonnetjesLijst.innerHTML = bonnenKopHtml() + '<div id="bonRijen"></div>';
+    toonBonnen();
   } catch (err) {
     bonnetjesLijst.innerHTML = `<p class="bon-lijst-empty">Kon de lijst niet laden: ${escapeHtml(err.message)}</p>`;
   }
 }
 
+bonnetjesLijst.addEventListener("click", (e) => {
+  const knop = e.target.closest("[data-sorteer]");
+  if (!knop) return;
+  const kolom = knop.dataset.sorteer;
+  bonnenSortering = bonnenSortering && bonnenSortering.kolom === kolom
+    ? { kolom, richting: bonnenSortering.richting === "asc" ? "desc" : "asc" }
+    : { kolom, richting: EERSTE_RICHTING[kolom] };
+  toonBonnen();
+});
+
+bonnetjesLijst.addEventListener("change", (e) => {
+  if (e.target.classList.contains("bon-check")) {
+    const id = parseInt(e.target.value, 10);
+    if (e.target.checked) bonnenGeselecteerd.add(id); else bonnenGeselecteerd.delete(id);
+    updateBonnenSamenvatting(zichtbareBonnen());
+  } else if (e.target.dataset.filter) {
+    bonnenFilter[e.target.dataset.filter] = e.target.value;
+    e.target.classList.toggle("bon-filter--actief", Boolean(e.target.value));
+    toonBonnen();
+  }
+});
+
+// Alles/niets selecteren geldt alleen voor de bonnen die nu zichtbaar zijn (na filteren).
 selecteerAllesBtn.addEventListener("click", () => {
-  bonnetjesLijst.querySelectorAll(".bon-check").forEach((cb) => { cb.checked = true; });
+  zichtbareBonnen().forEach((bon) => bonnenGeselecteerd.add(bon.ID));
+  toonBonnen();
 });
 deselecteerAllesBtn.addEventListener("click", () => {
-  bonnetjesLijst.querySelectorAll(".bon-check").forEach((cb) => { cb.checked = false; });
+  zichtbareBonnen().forEach((bon) => bonnenGeselecteerd.delete(bon.ID));
+  toonBonnen();
 });
 
 // Individuele pincode-vakjes die vanzelf doorschakelen en automatisch

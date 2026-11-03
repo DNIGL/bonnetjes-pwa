@@ -344,6 +344,15 @@ h1 {
   content: "\00a0\00b7\00a0";
 }
 
+.bon-samenvatting {
+  margin: -10px 0 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .bon-kop {
   display: none;
 }
@@ -356,12 +365,12 @@ h1 {
   }
 
   .bon-lijst {
-    --bon-kolommen: 18px minmax(0, 2fr) minmax(0, 1.3fr) 110px minmax(0, 1fr) 100px;
+    --bon-kolommen: 18px minmax(0, 1.6fr) minmax(0, 1.3fr) 110px minmax(0, 1.3fr) 100px;
     max-height: min(62vh, 620px);
   }
 
   .bon-lijst.bon-lijst--zonder-klant {
-    --bon-kolommen: 18px minmax(0, 2fr) 110px minmax(0, 1fr) 100px;
+    --bon-kolommen: 18px minmax(0, 2fr) 110px minmax(0, 1.3fr) 100px;
   }
 
   .bon-rij {
@@ -448,6 +457,80 @@ h1 {
   .bon-kop .bon-bedrag {
     font-size: 11px;
     color: var(--muted);
+  }
+
+  /* Kolomkoppen: leverancier, datum en bedrag sorteren bij een klik (tweede klik draait om),
+     klant en medewerker kiezen een waarde uit de lijst. */
+  .bon-kop .bon-sorteer {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .bon-kop .bon-sorteer.bon-bedrag {
+    justify-self: end;
+  }
+
+  .bon-kop .bon-sorteer:hover,
+  .bon-kop .bon-filter:hover {
+    color: var(--ink);
+  }
+
+  .bon-kop .bon-sorteer:focus-visible,
+  .bon-kop .bon-filter:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .bon-pijl {
+    font-size: 12px;
+    letter-spacing: 0;
+    opacity: 0.4;
+  }
+
+  .bon-pijl--actief {
+    opacity: 1;
+    color: var(--blue);
+  }
+
+  .bon-kop .bon-filter {
+    width: auto;
+    max-width: 100%;
+    margin: 0;
+    padding: 4px 20px 4px 0;
+    border: none;
+    border-radius: 4px;
+    background-color: transparent;
+    background-position: right 0 center;
+    background-size: 12px;
+    box-shadow: none;
+    field-sizing: content;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .bon-kop .bon-filter:focus {
+    border: none;
+    box-shadow: none;
+  }
+
+  .bon-kop .bon-filter--actief {
+    color: var(--blue);
   }
 }
 
