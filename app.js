@@ -1526,7 +1526,7 @@ let bonnenMetKlant = false;
 let bonnenGeselecteerd = new Set();
 const bonnenFilter = { klant: "", medewerker: "" };
 let bonnenSortering = null; // { kolom, richting } of null: volgorde zoals de flow die geeft
-// Eerste klik per kolom: datum en bedrag van nieuw/hoog naar oud/laag, leverancier A-Z; tweede klik draait om.
+// Eerste klik per kolom: datum en bedrag van nieuw/hoog naar oud/laag, leverancier A-Z; tweede klik draait om, derde klik herstelt de standaardvolgorde.
 const EERSTE_RICHTING = { leverancier: "asc", datum: "desc", bedrag: "desc" };
 
 // "dd-mm-jjjj" -> "jjjjmmdd", zodat tekstvergelijking op datum klopt.
@@ -1644,9 +1644,14 @@ bonnetjesLijst.addEventListener("click", (e) => {
   const knop = e.target.closest("[data-sorteer]");
   if (!knop) return;
   const kolom = knop.dataset.sorteer;
-  bonnenSortering = bonnenSortering && bonnenSortering.kolom === kolom
-    ? { kolom, richting: bonnenSortering.richting === "asc" ? "desc" : "asc" }
-    : { kolom, richting: EERSTE_RICHTING[kolom] };
+  // Drie standen per kolom: eerste richting, omgekeerd, en dan terug naar de standaardvolgorde van de flow.
+  if (!bonnenSortering || bonnenSortering.kolom !== kolom) {
+    bonnenSortering = { kolom, richting: EERSTE_RICHTING[kolom] };
+  } else if (bonnenSortering.richting === EERSTE_RICHTING[kolom]) {
+    bonnenSortering = { kolom, richting: EERSTE_RICHTING[kolom] === "asc" ? "desc" : "asc" };
+  } else {
+    bonnenSortering = null;
+  }
   toonBonnen();
 });
 
